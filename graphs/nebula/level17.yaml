@@ -1,0 +1,82 @@
+version: '0.5'
+graph:
+  type: reference
+challenge:
+  id: nebula_level17
+  name: Nebula Level 17
+  description: Exploit unsafe pickle deserialization on port 10007 to obtain a shell as flag17.
+attacker_context:
+  user: level17
+  access:
+    method: ssh
+    credentials:
+      username: level17
+      password: level17
+  target:
+    host: <target-hostname-or-ip>
+    port: 22
+goal:
+  node: node2
+irrelevant_commands:
+- man
+- pwd
+- id
+- whoami
+- clear
+- history
+- uname
+- hostname
+- ls
+- cd
+- cat
+- file
+- strings
+- ltrace
+- strace
+nodes:
+- id: start
+  type: sentinel
+  label: Start
+- id: node0
+  type: state
+  label: Deserialization flaw identified
+- id: node1
+  type: state
+  label: Malicious pickle payload prepared
+- id: node2
+  type: state
+  label: Shell as flag17 obtained
+edges:
+- id: edge0
+  from: start
+  to: node0
+  action: inspect_python_service_source
+  accepted_commands:
+  - cat /home/flag17/flag17.py
+  - grep pickle /home/flag17/flag17.py
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge1
+  from: node0
+  to: node1
+  action: create_pickle_payload_with_reduce
+  accepted_commands:
+  - python /tmp/exploit17.py
+  - cat > /tmp/exploit17.py
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge2
+  from: node1
+  to: node2
+  action: send_payload_to_service_and_receive_shell
+  accepted_commands:
+  - nc -l -p 9999
+  - python /tmp/exploit17.py
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$

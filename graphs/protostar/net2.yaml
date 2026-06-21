@@ -1,0 +1,106 @@
+version: '0.5'
+graph:
+  type: reference
+challenge:
+  id: protostar_net2
+  name: Protostar Net Two
+  description: Receive four little-endian unsigned integers, compute their wrapped 32-bit sum, and send the result back in little-endian form.
+attacker_context:
+  user: user
+  access:
+    method: ssh
+    credentials:
+      username: user
+      password: user
+  target:
+    host: <target-hostname-or-ip>
+    port: 22
+goal:
+  node: node4
+irrelevant_commands:
+- pwd
+- id
+- whoami
+- clear
+- history
+- uname
+- hostname
+- man
+- strings
+- checksec
+- file
+- ls
+- ls -la
+- env
+- printenv
+nodes:
+- id: start
+  type: sentinel
+  label: Start
+- id: node0
+  type: state
+  label: Four integers received
+- id: node1
+  type: state
+  label: Wrapped 32-bit sum computed
+- id: node2
+  type: state
+  label: Sum packed as little endian
+- id: node3
+  type: state
+  label: Binary result sent
+- id: node4
+  type: state
+  label: Correct wrapped sum accepted
+edges:
+- id: edge0
+  from: start
+  to: node0
+  action: receive_four_binary_integers
+  accepted_commands:
+  - nc <target-hostname-or-ip> 2997
+  - socat - TCP:<target-hostname-or-ip>:2997
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge1
+  from: node0
+  to: node1
+  action: compute_wrapped_32bit_sum
+  accepted_commands:
+  - python -c 's=(a+b+c+d) & 0xffffffff; print s'
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge2
+  from: node1
+  to: node2
+  action: pack_sum_little_endian
+  accepted_commands:
+  - python -c 'import struct; print struct.pack("<I", (<sum> & 0xffffffff))'
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge3
+  from: node2
+  to: node3
+  action: send_wrapped_sum_to_service
+  accepted_commands:
+  - python -c 'import socket,struct; s=socket.create_connection(("<target-hostname-or-ip>",2997)); raw=s.recv(16); nums=struct.unpack("<IIII", raw); total=sum(nums) & 0xffffffff; s.sendall(struct.pack("<I", total)); print s.recv(1024)'
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*you added them correctly.*
+    stderr_regex: ^$
+- id: edge4
+  from: node3
+  to: node4
+  action: receive_success_confirmation
+  accepted_commands:
+  - python -c 'import socket,struct; s=socket.create_connection(("<target-hostname-or-ip>",2997)); raw=s.recv(16); nums=struct.unpack("<IIII", raw); total=sum(nums) & 0xffffffff; s.sendall(struct.pack("<I", total)); print s.recv(1024)'
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*you added them correctly.*
+    stderr_regex: ^$

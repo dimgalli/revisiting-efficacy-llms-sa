@@ -1,0 +1,96 @@
+version: '0.5'
+graph:
+  type: reference
+challenge:
+  id: nebula_level19
+  name: Nebula Level 19
+  description: Exploit the parent-PID trust flaw with an orphaned child process to create a SUID helper as flag19.
+attacker_context:
+  user: level19
+  access:
+    method: ssh
+    credentials:
+      username: level19
+      password: level19
+  target:
+    host: <target-hostname-or-ip>
+    port: 22
+goal:
+  node: node3
+irrelevant_commands:
+- man
+- pwd
+- id
+- whoami
+- clear
+- history
+- uname
+- hostname
+- ls
+- cd
+- cat
+- file
+- strings
+- ltrace
+- strace
+nodes:
+- id: start
+  type: sentinel
+  label: Start
+- id: node0
+  type: state
+  label: PPID trust flaw identified
+- id: node1
+  type: state
+  label: Orphan-process exploit prepared
+- id: node2
+  type: state
+  label: SUID helper created
+- id: node3
+  type: state
+  label: Execution as flag19 obtained
+edges:
+- id: edge0
+  from: start
+  to: node0
+  action: inspect_flag19_parent_process_logic
+  accepted_commands:
+  - cat /home/flag19/flag19.c
+  - ps aux | grep init
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge1
+  from: node0
+  to: node1
+  action: compile_orphan_process_exploit
+  accepted_commands:
+  - cc -o /tmp/zool /tmp/orphan.c
+  - gcc -o /tmp/zool /tmp/orphan.c
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge2
+  from: node1
+  to: node2
+  action: run_exploit_to_make_suid_shell
+  accepted_commands:
+  - /tmp/zool
+  - /bin/sh /tmp/makeshell.sh
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge3
+  from: node2
+  to: node3
+  action: execute_created_shell_and_run_getflag
+  accepted_commands:
+  - /home/flag19/shell 980
+  - ~flag19/shell 980
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$

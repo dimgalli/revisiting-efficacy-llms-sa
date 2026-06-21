@@ -1,0 +1,82 @@
+version: '0.5'
+graph:
+  type: reference
+challenge:
+  id: nebula_level06
+  name: Nebula Level 06
+  description: Crack the legacy password hash from /etc/passwd and switch to flag06.
+attacker_context:
+  user: level06
+  access:
+    method: ssh
+    credentials:
+      username: level06
+      password: level06
+  target:
+    host: <target-hostname-or-ip>
+    port: 22
+goal:
+  node: node2
+irrelevant_commands:
+- man
+- pwd
+- id
+- whoami
+- clear
+- history
+- uname
+- hostname
+- ls
+- cd
+- cat
+- file
+- strings
+- ltrace
+- strace
+nodes:
+- id: start
+  type: sentinel
+  label: Start
+- id: node0
+  type: state
+  label: flag06 hash identified
+- id: node1
+  type: state
+  label: flag06 password recovered
+- id: node2
+  type: state
+  label: Execution as flag06 obtained
+edges:
+- id: edge0
+  from: start
+  to: node0
+  action: extract_flag06_hash_from_passwd
+  accepted_commands:
+  - 'grep ^flag06: /etc/passwd'
+  - cat /etc/passwd | grep flag06
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge1
+  from: node0
+  to: node1
+  action: crack_hash_with_john
+  accepted_commands:
+  - unshadow /etc/passwd /etc/shadow 2>/dev/null
+  - john /tmp/passwd.copy
+  - john --show /tmp/passwd.copy
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge2
+  from: node1
+  to: node2
+  action: switch_to_flag06_with_cracked_password
+  accepted_commands:
+  - su - flag06
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$

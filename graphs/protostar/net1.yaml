@@ -1,0 +1,93 @@
+version: '0.5'
+graph:
+  type: reference
+challenge:
+  id: protostar_net1
+  name: Protostar Net One
+  description: Read a 32-bit binary integer from the network and send back its ASCII decimal representation.
+attacker_context:
+  user: user
+  access:
+    method: ssh
+    credentials:
+      username: user
+      password: user
+  target:
+    host: <target-hostname-or-ip>
+    port: 22
+goal:
+  node: node3
+irrelevant_commands:
+- pwd
+- id
+- whoami
+- clear
+- history
+- uname
+- hostname
+- man
+- strings
+- checksec
+- file
+- ls
+- ls -la
+- env
+- printenv
+nodes:
+- id: start
+  type: sentinel
+  label: Start
+- id: node0
+  type: state
+  label: Binary integer received
+- id: node1
+  type: state
+  label: Binary integer decoded
+- id: node2
+  type: state
+  label: ASCII decimal reply sent
+- id: node3
+  type: state
+  label: Correct ASCII response accepted
+edges:
+- id: edge0
+  from: start
+  to: node0
+  action: connect_and_receive_32bit_integer
+  accepted_commands:
+  - nc <target-hostname-or-ip> 2998
+  - socat - TCP:<target-hostname-or-ip>:2998
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge1
+  from: node0
+  to: node1
+  action: decode_little_endian_integer
+  accepted_commands:
+  - python -c 'import struct; print struct.unpack("<I", <four_bytes>)[0]'
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge2
+  from: node1
+  to: node2
+  action: send_ascii_decimal_with_newline
+  accepted_commands:
+  - python -c 'import socket,struct; s=socket.create_connection(("<target-hostname-or-ip>",2998)); raw=s.recv(4); n=struct.unpack("<I", raw)[0]; s.sendall((str(n)+"\n").encode()); print s.recv(1024)'
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*you correctly sent the data.*
+    stderr_regex: ^$
+- id: edge3
+  from: node2
+  to: node3
+  action: receive_success_confirmation
+  accepted_commands:
+  - python -c 'import socket,struct; s=socket.create_connection(("<target-hostname-or-ip>",2998)); raw=s.recv(4); n=struct.unpack("<I", raw)[0]; s.sendall((str(n)+"\n").encode()); print s.recv(1024)'
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*you correctly sent the data.*
+    stderr_regex: ^$

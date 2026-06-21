@@ -1,0 +1,80 @@
+version: '0.5'
+graph:
+  type: reference
+challenge:
+  id: nebula_level08
+  name: Nebula Level 08
+  description: Recover flag08 credentials from the readable packet capture and switch to flag08.
+attacker_context:
+  user: level08
+  access:
+    method: ssh
+    credentials:
+      username: level08
+      password: level08
+  target:
+    host: <target-hostname-or-ip>
+    port: 22
+goal:
+  node: node2
+irrelevant_commands:
+- man
+- pwd
+- id
+- whoami
+- clear
+- history
+- uname
+- hostname
+- ls
+- cd
+- cat
+- file
+- strings
+- ltrace
+- strace
+nodes:
+- id: start
+  type: sentinel
+  label: Start
+- id: node0
+  type: state
+  label: Packet capture identified
+- id: node1
+  type: state
+  label: Credentials recovered from pcap
+- id: node2
+  type: state
+  label: Execution as flag08 obtained
+edges:
+- id: edge0
+  from: start
+  to: node0
+  action: identify_world_readable_pcap
+  accepted_commands:
+  - ls -l /home/flag08/capture.pcap
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge1
+  from: node0
+  to: node1
+  action: extract_credentials_from_capture
+  accepted_commands:
+  - tcpdump -A -r /home/flag08/capture.pcap
+  - strings /home/flag08/capture.pcap
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge2
+  from: node1
+  to: node2
+  action: switch_to_flag08_with_recovered_password
+  accepted_commands:
+  - su - flag08
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$

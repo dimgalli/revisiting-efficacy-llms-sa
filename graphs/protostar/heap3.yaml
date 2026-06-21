@@ -1,0 +1,107 @@
+version: '0.5'
+graph:
+  type: reference
+challenge:
+  id: protostar_heap3
+  name: Protostar Heap Three
+  description: Exploit dlmalloc metadata corruption during free() to overwrite a hook or pointer with winner().
+attacker_context:
+  user: user
+  access:
+    method: ssh
+    credentials:
+      username: user
+      password: user
+  target:
+    host: <target-hostname-or-ip>
+    port: 22
+goal:
+  node: node4
+irrelevant_commands:
+- pwd
+- id
+- whoami
+- clear
+- history
+- uname
+- hostname
+- man
+- strings
+- checksec
+- file
+- ls
+- ls -la
+- env
+- printenv
+nodes:
+- id: start
+  type: sentinel
+  label: Start
+- id: node0
+  type: state
+  label: winner() address recovered
+- id: node1
+  type: state
+  label: Heap unlink target chosen
+- id: node2
+  type: state
+  label: Fake chunk metadata prepared
+- id: node3
+  type: state
+  label: Free sequence primed for arbitrary write
+- id: node4
+  type: state
+  label: winner() executed via heap metadata corruption
+edges:
+- id: edge0
+  from: start
+  to: node0
+  action: recover_winner_symbol_address
+  accepted_commands:
+  - objdump -t /opt/protostar/bin/heap3 | grep " winner$"
+  - nm /opt/protostar/bin/heap3 | grep " winner$"
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*winner.*
+    stderr_regex: ^$
+- id: edge1
+  from: node0
+  to: node1
+  action: identify_unlink_style_write_target
+  accepted_commands:
+  - gdb -q /opt/protostar/bin/heap3
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: .*
+- id: edge2
+  from: node1
+  to: node2
+  action: craft_fake_chunk_headers_in_first_two_buffers
+  accepted_commands:
+  - python -c 'print "<fake_chunk_payload_a>"'
+  - python -c 'print "<fake_chunk_payload_b>"'
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge3
+  from: node2
+  to: node3
+  action: supply_three_arguments_to_corrupt_free
+  accepted_commands:
+  - /opt/protostar/bin/heap3 $(python -c 'print "<fake_chunk_payload_a>"') $(python -c 'print "<fake_chunk_payload_b>"') $(python -c 'print "<trigger_payload_c>"')
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*(dynamite failed\?|wasn't too bad).*
+    stderr_regex: .*
+- id: edge4
+  from: node3
+  to: node4
+  action: achieve_control_flow_to_winner
+  accepted_commands:
+  - /opt/protostar/bin/heap3 $(python -c 'print "<fake_chunk_payload_a>"') $(python -c 'print "<fake_chunk_payload_b>"') $(python -c 'print "<trigger_payload_c>"')
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*that wasn't too bad now, was it\?.*
+    stderr_regex: ^$

