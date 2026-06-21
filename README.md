@@ -1,0 +1,1 @@
+Repository for our paper "Revisiting the Efficacy of Large Language Models for Security Assessments" accepted at [ESORICS 2026](https://sites.google.com/di.uniroma1.it/esorics2026/).
